@@ -1,5 +1,7 @@
-# Basic Fountain Writer
+# Basic Fountain Writer QT Creator Project Files
 Basic text writing program for specifically .fountain files.
+This repo contains the CMakelists as well.
+
 ## Import .fountain files
 Import .fountain files and use the nice UI 
 
