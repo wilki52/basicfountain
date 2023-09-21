@@ -53,7 +53,7 @@ void TextFileManager::openFile(QString fileName, SubTextEdit *txtedit){
 
 }
 
-
+//identifies what type of line it is.
 QString TextFileManager::identifyFountainLine(QString line){
 
     if (line==""){
@@ -80,7 +80,7 @@ QString TextFileManager::identifyFountainLine(QString line){
 
 } //returns fountain line.
 
-
+//generates a block based off of it's type.
 void TextFileManager::generateBlock(SubTextEdit* textedit, QString line, int indx, QString type){
     QTextCursor cursor = textedit->textCursor();
     //QTextBlock block = (textedit->document()->findBlockByLineNumber(cursor.blockNumber()));
@@ -122,6 +122,7 @@ void TextFileManager::generateBlock(SubTextEdit* textedit, QString line, int ind
     textedit->insertPlainText(line);
 }
 //genereate
+//Generates either a dialog block or parentheses block.
 void TextFileManager::generateDialog(SubTextEdit* textedit, QString line, int indx){
     QTextCursor cursor = textedit->textCursor();
     QTextBlockFormat bform = textedit->document()->findBlockByLineNumber(indx).blockFormat();

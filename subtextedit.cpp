@@ -7,144 +7,27 @@
 #include <QFile>
 #include <QDir>
 //#include <QTextBlockFormat>
-SubTextEdit::SubTextEdit()
+SubTextEdit::SubTextEdit() : state("action"), fontSize(14)
 {
 
-    fontSize = 14;
+    //Set up a QTextDocument for our SubTextEdit class
     QTextDocument *doc = new QTextDocument;
     doc->setDefaultFont(QFont("Courier New", fontSize));
     doc->setDocumentMargin(72);
     this->setDocument(doc);
-    this->setTabStopDistance(72);
-    state = "action";
+
+    //depreciated
+    //connects signal cursorPositionChanged() to our custom slot function onCursorChanged() (can find in header file as well)
     connect(this, SIGNAL(cursorPositionChanged()), this, SLOT(onCursorChanged()));
 
     QTextCursor cursor = this->textCursor();
-    QTextBlockFormat bform;
-
-    bform.setLeftMargin(SubTextEdit::Action);
-    bform.setBottomMargin(fontSize);
-    cursor.setBlockFormat(bform);
-
-    onCursorChanged();
-
+    cursor.setBlockFormat(generateFormat(fontSize, SubTextEdit::Action, 0, 0));
 }
 QString SubTextEdit::getCurrentFile(){
     return currentFile;
 }
 void SubTextEdit::setCurrentFile(QString fname){
     currentFile = fname;
-
-}
-
-
-int SubTextEdit::getFontSize(){
-    return fontSize;
-}
-
-void SubTextEdit::setShortcuts(){
-    QTextCursor cursor = this->textCursor();
-    QTextDocument *doc = this->document();
-    QTextBlock block = (doc->findBlockByLineNumber(cursor.blockNumber()));
-    QString text = block.text();
-    int leftmargin = block.blockFormat().leftMargin();
-    tabSetMargins[1] = 0;
-    tabSetMargins[2] = fontSize;
-
-    enterSetMargins[1] = 0;
-    enterSetMargins[2] = fontSize;
-
-
-    switch (leftmargin){
-        case SubTextEdit::Action:
-            state = "action";
-            tabSetMargins[0] = SubTextEdit::Character;
-            tabSetMargins[2] = 0;
-
-            enterSetMargins[0] = SubTextEdit::Action;
-            break;
-
-        case SubTextEdit::Dialog:
-            state = "dialog";
-            tabSetMargins[0] = SubTextEdit::Parenth;
-            tabSetMargins[1] = SubTextEdit::Parenth;
-            tabSetMargins[2] = 0;
-
-            enterSetMargins[0] = SubTextEdit::Action;
-            break;
-
-        case SubTextEdit::Character:
-            if (!block.text().isUpper()){
-                text= block.text().toUpper();
-                cursor.select(QTextCursor::LineUnderCursor);
-                cursor.removeSelectedText();
-                insertPlainText(text);
-            }
-            state = "character";
-            tabSetMargins[0] = SubTextEdit::Dialog;
-            tabSetMargins[1] = SubTextEdit::Dialog;
-            tabSetMargins[2] = 0;
-
-            if (block.text().length()==0){
-                enterSetMargins[0]= SubTextEdit::Action;
-            }
-            else{
-                enterSetMargins[0] = SubTextEdit::Dialog;
-                enterSetMargins[1] = SubTextEdit::Dialog;
-            }
-            break;
-
-        case SubTextEdit::Parenth:
-            state = "parenth";
-            tabSetMargins[0] = SubTextEdit::Dialog;
-            tabSetMargins[1] = SubTextEdit::Dialog;
-
-            enterSetMargins[0] = SubTextEdit::Dialog;
-            enterSetMargins[1] = SubTextEdit::Dialog;
-            break;
-
-        case SubTextEdit::Transition:
-            state = "transition";
-            tabSetMargins[0] = SubTextEdit::Action;
-            enterSetMargins[0] = SubTextEdit::Action;
-            break;
-
-        }
-
-}
-void SubTextEdit::onCursorChanged(){
-    setShortcuts();
-
-}
-
-void SubTextEdit::generateBlockParantheses(QTextCursor cursor, int bot,int left, int right, int top){
-    QString blockText = document()->findBlockByLineNumber(cursor.blockNumber()).text();
-
-    QTextBlockFormat bform = generateFormat(bot, left, right, top);
-
-    if (blockText.length() >0){
-            //creates block format which sets current block's bottom margin to 0.
-            QTextBlockFormat tempformat = generateFormat(0,SubTextEdit::Dialog, SubTextEdit::Dialog, 0);
-            cursor.setBlockFormat(tempformat);
-
-
-            cursor.insertBlock(bform);
-    }
-    else{
-            //it is empty, so just set the margins here.
-            cursor.setBlockFormat(bform);
-    }
-    insertPlainText("()");
-    cursor.movePosition(QTextCursor::Left, QTextCursor::MoveAnchor, 1);
-    setTextCursor(cursor);
-}
-QTextBlockFormat SubTextEdit::generateFormat(int b, int l, int r, int t){
-    QTextBlockFormat format;
-    format.setBottomMargin(b);
-    format.setLeftMargin(l);
-    format.setRightMargin(r);
-    format.setTopMargin(t);
-    return format;
 }
 
 //overrides keypressevent of parent class. Gets called after every input.
@@ -155,74 +38,182 @@ void SubTextEdit::keyPressEvent(QKeyEvent *event){
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
         QTextCursor cursor = this->textCursor();
         QTextBlock block = (document()->findBlockByLineNumber(cursor.blockNumber()));
-        QTextBlockFormat bform;
+        QString text = block.text();
+        int leftmargin = block.blockFormat().leftMargin();
 
+        //if margin is 0, something is not right. so it fixes itself. checker.
+        if (leftmargin == 0){
+            cursor.setBlockFormat(generateFormat(fontSize, SubTextEdit::Action, 0, 0));
+        }
+
+
+        //If you press tab, insert a new text block.
+        //In some cases, if text is empty, then change configs of current block instead of creating new one.
         if (keyEvent->key() == Qt::Key_Tab){
-            //Set margins for the new block.
-       \
-            bform = generateFormat(tabSetMargins[2], tabSetMargins[0], tabSetMargins[1], 0);
-            //RANDOM EXCEPTIONS HERE.
-            if (state == "dialog"){
-                //TURN TO PARANTHESES
-                generateBlockParantheses(cursor, tabSetMargins[2], tabSetMargins[0], tabSetMargins[1], 0);
-                return;
-            }
-            else if (state == "parenth"){
 
-                //TURN TO DIALOG; //MOVE CURSOR TO END OF THE BLOCK. This is so when a block is inserted, we won't clip parentheses.
-                moveCursor(QTextCursor::EndOfBlock);
-                cursor = this->textCursor();
-            }
-            else if (state == "character"){
-                if (block.text() ==""){
+            //Check the block's type by comparing it's left margin size.
+            switch (leftmargin){
+            case (SubTextEdit::Action): //if currently action block, create a new character block.
+                if (text.isEmpty()){
+                    qDebug() << "hllo dutch";
+                    cursor.setBlockFormat(generateFormat(0, SubTextEdit::Character, 0, 0));
+                    break;
+                }
 
-                    bform = generateFormat(fontSize, SubTextEdit::Transition, 36, 0);
-                    bform.setAlignment(Qt::AlignRight);
+                createCharacterBlock(cursor);
+                break;
+
+                //if chara block, create transition or dialog block depending on text
+            case (SubTextEdit::Character):
+                if (text.isEmpty()){
+                    createTransitionBlock(cursor);
                 }
                 else{
-                    bform = generateFormat(fontSize, SubTextEdit::Dialog, SubTextEdit::Dialog, 0);
+                    createDialogBlock(cursor);
                 }
-            }
+                break;
 
-            //BLOCK CREATION.
-            //if its empty, no point in creating a new block.
-            if (block.text()==""){
-                cursor.setBlockFormat(bform);
-            }
-            else{
-                cursor.insertBlock(bform);
-            }
-
-        }
-
-            //IF RETURN KEY IS PRESSED.
-        else if (keyEvent->key() == Qt::Key_Return){
-            if (state=="parenth"){
-                //TRANSITIONS TO DIALOG if press return.
-                    //Just skips to the end of th eblock.
+            case (SubTextEdit::Dialog): //if dialog block, create parantheses block.
+                //shared function
+                createParenthesesBlock(cursor);
+                break;
+            case (SubTextEdit::Parenth):
+                //go to end of block, then
                 moveCursor(QTextCursor::EndOfBlock);
                 cursor = this->textCursor();
+
+                //create block.
+                createDialogBlock(cursor);
+                break;
+            case (SubTextEdit::Transition):
+                if (text.isEmpty()){
+                    cursor.setBlockFormat(generateFormat(fontSize, SubTextEdit::Action, 0, 0));
+                }
+                else{
+                    createActionBlock(cursor);
+                }
+
+                break;
             }
-            //generate.
-            cursor.insertBlock(generateFormat(enterSetMargins[2],enterSetMargins[0],enterSetMargins[1], 0));
-
         }
+        else if (keyEvent->key() == Qt::Key_Return){ //if press enter key.
+            switch (leftmargin){
+            case (SubTextEdit::Action): //if currently on action block, create another action block.
+                createActionBlock(cursor);
+                break;
+            case (SubTextEdit::Character): //if character, create an action or dialog block. depends on text.
+                if (text.isEmpty()){
+                    createActionBlock(cursor);
+                }
+                else{
+                    createDialogBlock(cursor);
+                }
+                break;
+            case (SubTextEdit::Dialog): //if dialog, create an action block.
+                createActionBlock(cursor);
 
-        else if (keyEvent->key() == Qt::Key_Backspace){
-            if (block.text().isEmpty()){
+                break;
+            case (SubTextEdit::Parenth): //if parentheses, create dialog block
+
+                //move cursor past the parentheses AKA end of block.
+                moveCursor(QTextCursor::EndOfBlock);
+                cursor = this->textCursor();
+                //create block.
+                createDialogBlock(cursor);
+                break;
+            case (SubTextEdit::Transition):
+                //insert action.
+                qDebug() << "enter to action";
+                createActionBlock(cursor);
+                break;
+            }
+        }
+        else if (keyEvent->key() == Qt::Key_Backspace){ //if backspace
+            //if text is empty and you hit backspace, go return to action block format.
+            if (text.isEmpty()){
                 cursor.setBlockFormat(generateFormat(fontSize, SubTextEdit::Action, 0, 0));
             }
             QTextEdit::keyPressEvent(event);
         }
-        else{
+        else{ //emulate regular keypresses. uses parent class's keypressevent(). parent: QTextEdit widget
             QTextEdit::keyPressEvent(event);
+
+            //if block is in character mode, capitalize everything.
+            if (leftmargin == SubTextEdit::Character && !block.text().isUpper()){
+                text = block.text().toUpper();
+                cursor.select(QTextCursor::LineUnderCursor);
+                cursor.removeSelectedText();
+                insertPlainText(text);
+            }
         }
     }
-    //CALL IT AGAIN AT THE END TO REFRESH.
-    setShortcuts();
 }
 
+int SubTextEdit::getFontSize(){
+    return fontSize;
+}
+//depreciated. but this slot is still connected react to any cursor changes, but its not supposed to do anything.
+void SubTextEdit::onCursorChanged(){
+}
+
+void SubTextEdit::createActionBlock(QTextCursor cursor){
+    QTextBlockFormat bform = generateFormat(fontSize, SubTextEdit::Action, 0, 0);
+    cursor.insertBlock(bform);
+}
+void SubTextEdit::createCharacterBlock(QTextCursor cursor){
+    QTextBlockFormat bform = generateFormat(0, SubTextEdit::Character, 0, 0);
+    cursor.insertBlock(bform);
+    }
+void SubTextEdit::createDialogBlock(QTextCursor cursor){
+    QTextBlockFormat bform = generateFormat(fontSize, SubTextEdit::Dialog, SubTextEdit::Dialog, 0);
+    cursor.insertBlock(bform);
+}
+void  SubTextEdit::createParenthesesBlock(QTextCursor cursor){
+    QString blockText = document()->findBlockByLineNumber(cursor.blockNumber()).text();
+    QTextBlockFormat bForm = generateFormat(0, SubTextEdit::Parenth, SubTextEdit::Parenth, 0);
+
+    if (blockText.length() > 0){
+            //ADJUST spacing between dialog and parantheses blocks.
+            //tempformat is to recorrect the bottom margin of the current block before inserting our parentheses block.
+            //this is so the spacing is not weird.
+            QTextBlockFormat tempformat = generateFormat(0,SubTextEdit::Dialog, SubTextEdit::Dialog, 0);
+            cursor.setBlockFormat(tempformat);
+
+
+            cursor.insertBlock(bForm);
+    }
+    else{
+        cursor.setBlockFormat(bForm);
+    }
+    insertPlainText("()");
+    cursor.movePosition(QTextCursor::Left, QTextCursor::MoveAnchor, 1);
+    setTextCursor(cursor);
+
+}
+void  SubTextEdit::createTransitionBlock(QTextCursor cursor){
+    QTextBlockFormat bForm = generateFormat(0, SubTextEdit::Transition, SubTextEdit::Action, 0);
+    bForm.setAlignment(Qt::AlignRight);
+    cursor.insertBlock(bForm);
+}
+
+QTextBlockFormat SubTextEdit::generateFormat(int b, int l, int r, int t){
+    QTextBlockFormat format;
+    format.setBottomMargin(b);
+    format.setLeftMargin(l);
+    format.setRightMargin(r);
+    format.setTopMargin(t);
+    return format;
+}
+
+/*
+void onTabPressed(QTextCursor cursor, QString text, int leftmargin){
+
+}
+*/
+
+
+//clears our text. used in textfilemanager class's opening a file function.
+//Probably not the best practice lol
 void SubTextEdit::clear(){
     setPlainText("");
-
 }

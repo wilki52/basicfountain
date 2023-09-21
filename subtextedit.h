@@ -18,6 +18,12 @@ public:
     int getFontSize();
     void clear();
 
+    void createActionBlock(QTextCursor cursor);
+    void createCharacterBlock(QTextCursor cursor);
+    void createDialogBlock(QTextCursor cursor);
+    void createParenthesesBlock(QTextCursor cursor);
+    void createTransitionBlock(QTextCursor cursor);
+
     enum TypeMargins {
         Action = 36,
         Character = 194,
