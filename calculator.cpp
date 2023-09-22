@@ -1,5 +1,7 @@
 #include "calculator.h"
 
+//comment
+
 Calculator::Calculator()
 {
 
